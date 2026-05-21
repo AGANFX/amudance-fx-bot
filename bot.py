@@ -35,8 +35,15 @@ ACCOUNT_NAME = "AMUJO TIMILEHIN"
 # =========================
 # INIT
 # =========================
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
-client = genai.Client(api_key=GEMINI_API_KEY)
+bot = telebot.TeleBot(
+    BOT_TOKEN,
+    parse_mode="HTML"
+)
+
+client = genai.Client(
+    api_key=GEMINI_API_KEY
+)
+
 app = Flask(__name__)
 
 # =========================
@@ -50,7 +57,9 @@ FILES = [
 ]
 
 for f in FILES:
+
     if not os.path.exists(f):
+
         with open(f, "w") as x:
             json.dump({}, x)
 
@@ -63,30 +72,34 @@ GEMINI_MODEL = "gemini-2.5-flash"
 # HELPERS
 # =========================
 def load(f):
+
     try:
+
         with open(f, "r") as x:
             return json.load(x)
+
     except:
         return {}
 
 def save(f, d):
+
     with open(f, "w") as x:
         json.dump(d, x, indent=4)
 
 # =========================
-# SAVE USERS
+# REGISTER USERS
 # =========================
-def save_user(user):
+def register_user(uid):
 
     users = load("users.json")
 
-    uid = str(user.id)
+    uid = str(uid)
 
-    users[uid] = {
-        "id": user.id,
-        "name": user.first_name,
-        "username": user.username
-    }
+    if uid not in users:
+
+        users[uid] = {
+            "joined": str(datetime.now())
+        }
 
     save("users.json", users)
 
@@ -119,57 +132,97 @@ def main_menu():
 # LIMIT MESSAGE
 # =========================
 def limit_message():
+
     return (
-        "⚠️ Server busy or analysis limit reached.\n\n"
-        "Please wait a few minutes and try again."
+        "⚠️ Server busy or analysis temporarily unavailable.\n\n"
+        "Please try again later."
     )
+
+# =========================
+# SAFE SEND
+# FIX TOO LONG ERROR
+# =========================
+def safe_send(
+    chat_id,
+    text,
+    reply_markup=None
+):
+
+    MAX = 4000
+
+    if len(text) <= MAX:
+
+        bot.send_message(
+            chat_id,
+            text,
+            reply_markup=reply_markup
+        )
+
+        return
+
+    parts = [
+        text[i:i+MAX]
+        for i in range(
+            0,
+            len(text),
+            MAX
+        )
+    ]
+
+    for part in parts:
+
+        bot.send_message(
+            chat_id,
+            part,
+            reply_markup=reply_markup
+        )
 
 # =========================
 # CREDIT SYSTEM
 # =========================
 def get_credit(uid):
 
-    d = load("credits.json")
-
-    return d.get(str(uid), 0)
+    return load(
+        "credits.json"
+    ).get(str(uid), 0)
 
 def add_credit(uid, amt):
 
-    d = load("credits.json")
+    data = load("credits.json")
 
     uid = str(uid)
 
-    d[uid] = d.get(uid, 0) + amt
+    data[uid] = data.get(uid, 0) + amt
 
-    save("credits.json", d)
+    save("credits.json", data)
 
 def use_credit(uid):
 
-    d = load("credits.json")
+    data = load("credits.json")
 
     uid = str(uid)
 
-    if d.get(uid, 0) > 0:
+    if data.get(uid, 0) > 0:
 
-        d[uid] -= 1
+        data[uid] -= 1
 
-        save("credits.json", d)
+        save("credits.json", data)
 
         return True
 
     return False
 
 # =========================
-# FREE TRIAL SYSTEM
-# ONLY FIRST TIME EVER
+# FREE TRIAL
+# FIRST TIME ONLY
 # =========================
 FREE_LIMIT = 2
 
 def get_free_used(uid):
 
-    d = load("free_trial.json")
+    data = load("free_trial.json")
 
-    return d.get(str(uid), 0)
+    return data.get(str(uid), 0)
 
 def can_use_free(uid):
 
@@ -177,41 +230,33 @@ def can_use_free(uid):
 
 def use_free(uid):
 
-    d = load("free_trial.json")
+    data = load("free_trial.json")
 
     uid = str(uid)
 
-    d[uid] = d.get(uid, 0) + 1
+    data[uid] = data.get(uid, 0) + 1
 
-    save("free_trial.json", d)
+    save("free_trial.json", data)
 
 # =========================
-# HUMAN DELAY
+# HUMAN EFFECT
 # =========================
 def human_delay(chat_id, sec=1):
 
-    bot.send_chat_action(chat_id, "typing")
+    bot.send_chat_action(
+        chat_id,
+        "typing"
+    )
 
     time.sleep(sec)
 
 # =========================
-# SPLIT LONG MESSAGE
+# GEMINI CALL
 # =========================
-def send_long_message(chat_id, text):
-
-    limit = 4000
-
-    for i in range(0, len(text), limit):
-
-        bot.send_message(
-            chat_id,
-            text[i:i + limit]
-        )
-
-# =========================
-# SAFE GEMINI CALL
-# =========================
-def call_gemini(prompt, image_base64):
+def call_gemini(
+    prompt,
+    image_base64
+):
 
     try:
 
@@ -233,14 +278,20 @@ def call_gemini(prompt, image_base64):
 
     except Exception as e:
 
-        print("Gemini Error:", e)
+        print(
+            "Gemini Error:",
+            e
+        )
 
     return None
 
 # =========================
 # AI ANALYSIS
 # =========================
-def analyze_market(message, file_info):
+def analyze_market(
+    message,
+    file_info
+):
 
     try:
 
@@ -248,7 +299,9 @@ def analyze_market(message, file_info):
             file_info.file_path
         )
 
-        path = f"chart_{message.chat.id}.jpg"
+        path = f"""
+chart_{message.chat.id}.jpg
+""".strip()
 
         with open(path, "wb") as f:
             f.write(file)
@@ -256,9 +309,36 @@ def analyze_market(message, file_info):
         prompt = """
 You are an elite institutional forex trader and Smart Money Concepts expert.
 
-Analyze this forex chart professionally.
+Analyze this forex chart professionally using:
+- Smart Money Concepts (SMC)
+- ICT concepts
+- Liquidity theory
+- Institutional order flow
+- Market structure
 
-FORMAT STRICTLY:
+IMPORTANT RULES:
+- DO NOT use markdown symbols like ** or *
+- Use clean Telegram-friendly formatting
+- Use professional emojis correctly
+- Keep spacing clean and premium
+- Avoid confusing explanations
+- Make the analysis understandable even for beginners
+- Sound like a professional hedge fund analyst
+- Be direct and accurate
+- ALWAYS give one final signal:
+BUY / SELL / NO TRADE
+
+VERY IMPORTANT:
+If the setup is weak or unclear:
+→ Return NO TRADE
+
+If buyers are dominant:
+→ Return BUY
+
+If sellers are dominant:
+→ Return SELL
+
+STRICT FORMAT:
 
 ━━━━━━━━━━━━━━━━━━
 🚀 AMUDANCE FX
@@ -266,36 +346,55 @@ FORMAT STRICTLY:
 
 📈 MARKET ANALYSIS
 
-1️⃣ Trend Direction
-2️⃣ Market Structure (BOS / CHoCH)
-3️⃣ Key Support & Resistance
-4️⃣ Liquidity Zones
-5️⃣ Institutional Bias
-6️⃣ Best Entry
-7️⃣ Stop Loss
-8️⃣ Take Profit Targets
-9️⃣ Risk Level
-🔟 Final Recommendation
+🕒 Timeframe:
+Mention timeframe clearly.
 
-RULES:
-- Use professional emojis
-- Make formatting very clean
-- Make analysis easy to read
-- Sound like a premium institutional analyst
-- Avoid confusion
-- Avoid overly long explanations
-- Be accurate and realistic
-- Use modern trading terminology
-- Add spacing properly
+📊 Market Direction:
+Bullish 📈 / Bearish 📉 / Ranging 🔄
 
-End with:
+🏗 Market Structure:
+Explain BOS or CHoCH simply.
+
+💧 Liquidity Zones:
+Show major liquidity clearly.
+
+🏦 Institutional Bias:
+Explain smart money direction.
+
+🎯 Trade Setup:
+Explain setup clearly.
+
+📥 Entry Zone:
+Give exact entry.
+
+🛑 Stop Loss:
+Give exact SL.
+
+💰 Take Profit Targets:
+TP1:
+TP2:
+TP3:
+
+⚠️ Risk Level:
+Low / Moderate / High
+
+🔥 Confidence Level:
+Low / Moderate / High
+
+📌 Trading Signal:
+BUY 📈
+SELL 📉
+or
+NO TRADE ⛔
+
+🧠 Professional Advice:
+Give short professional advice.
 
 ━━━━━━━━━━━━━━━━━━
 ⚠️ Trade responsibly
 ━━━━━━━━━━━━━━━━━━
 """
 
-        # LOADING
         bot.send_message(
             message.chat.id,
             "📡 Upload received..."
@@ -305,21 +404,28 @@ End with:
 
         bot.send_message(
             message.chat.id,
-            "🧠 Analyzing market structure..."
+            "🧠 AI analyzing chart..."
         )
 
         human_delay(message.chat.id)
 
         bot.send_message(
             message.chat.id,
-            "📊 Detecting liquidity zones..."
+            "📊 Processing market structure..."
         )
 
         human_delay(message.chat.id)
 
         bot.send_message(
             message.chat.id,
-            "🏦 Tracking institutional activity..."
+            "💧 Detecting liquidity zones..."
+        )
+
+        human_delay(message.chat.id)
+
+        bot.send_message(
+            message.chat.id,
+            "🏦 Tracking institutional flow..."
         )
 
         human_delay(message.chat.id)
@@ -341,20 +447,16 @@ End with:
 
             bot.send_message(
                 message.chat.id,
-                limit_message()
+                limit_message(),
+                reply_markup=main_menu()
             )
 
             return
 
-        final_text = f"""
-✅ <b>ANALYSIS COMPLETE</b>
-
-{result}
-"""
-
-        send_long_message(
+        safe_send(
             message.chat.id,
-            final_text
+            result,
+            reply_markup=main_menu()
         )
 
         try:
@@ -364,35 +466,41 @@ End with:
 
     except Exception as e:
 
-        print("Analysis Error:", e)
+        print(
+            "Analysis Error:",
+            e
+        )
 
         bot.send_message(
             message.chat.id,
-            "⚠️ Unable to analyze chart right now.\nPlease try again later."
+            limit_message(),
+            reply_markup=main_menu()
         )
 
 # =========================
 # START
 # =========================
-@bot.message_handler(commands=['start'])
+@bot.message_handler(
+    commands=['start']
+)
 def start(m):
 
-    save_user(m.from_user)
+    register_user(m.chat.id)
 
     bot.send_message(
         m.chat.id,
         f"""
 ━━━━━━━━━━━━━━━━━━
-🚀 <b>AMUDANCE FX</b>
+🚀 AMUDANCE FX
 ━━━━━━━━━━━━━━━━━━
 
 📊 Professional Market Analysis
 
 💎 Credits:
-<b>{get_credit(m.chat.id)}</b>
+{get_credit(m.chat.id)}
 
 🎁 Free Trial Left:
-<b>{FREE_LIMIT - get_free_used(m.chat.id)}</b>
+{FREE_LIMIT - get_free_used(m.chat.id)}
 
 Choose an option below 👇
 """,
@@ -400,7 +508,7 @@ Choose an option below 👇
     )
 
 # =========================
-# BUY MENU
+# BUY CREDITS
 # =========================
 @bot.message_handler(
     func=lambda m:
@@ -424,7 +532,9 @@ def buy(m):
         markup.add(
             types.InlineKeyboardButton(
                 f"{credits} Credits - ₦{price}",
-                callback_data=f"buy_{price}_{credits}"
+                callback_data=f"""
+buy_{price}_{credits}
+""".strip()
             )
         )
 
@@ -447,7 +557,9 @@ def buy_callback(c):
 
     uid = str(c.message.chat.id)
 
-    pending = load("pending_payments.json")
+    pending = load(
+        "pending_payments.json"
+    )
 
     pending[uid] = {
         "amount": int(amount),
@@ -455,7 +567,10 @@ def buy_callback(c):
         "time": str(datetime.now())
     }
 
-    save("pending_payments.json", pending)
+    save(
+        "pending_payments.json",
+        pending
+    )
 
     markup = types.InlineKeyboardMarkup()
 
@@ -469,22 +584,22 @@ def buy_callback(c):
     bot.send_message(
         uid,
         f"""
-🏦 <b>PAYMENT DETAILS</b>
+🏦 PAYMENT DETAILS
 
-🏛 Bank:
-<b>{BANK_NAME}</b>
+Bank:
+{BANK_NAME}
 
-💳 Account Number:
-<code>{ACCOUNT_NUMBER}</code>
+Account Number:
+{ACCOUNT_NUMBER}
 
-👤 Account Name:
-<b>{ACCOUNT_NAME}</b>
+Account Name:
+{ACCOUNT_NAME}
 
 💰 Amount:
-<b>₦{amount}</b>
+₦{amount}
 
 💎 Credits:
-<b>{credits}</b>
+{credits}
 
 ⚠️ After payment click the button below.
 """,
@@ -502,7 +617,9 @@ def user_paid(c):
 
     uid = c.data.split("_")[1]
 
-    pending = load("pending_payments.json")
+    pending = load(
+        "pending_payments.json"
+    )
 
     if uid not in pending:
 
@@ -539,25 +656,25 @@ def user_paid(c):
     bot.send_message(
         ADMIN_ID,
         f"""
-💰 <b>PAYMENT REQUEST</b>
+💰 PAYMENT REQUEST
 
 👤 Name:
-<b>{full_name}</b>
+{full_name}
 
 🆔 User ID:
-<code>{uid}</code>
+{uid}
 
-📛 Username:
-<b>{username}</b>
+🌐 Username:
+{username}
 
 💵 Amount:
-<b>₦{data['amount']}</b>
+₦{data['amount']}
 
 💎 Credits:
-<b>{data['credits']}</b>
+{data['credits']}
 
 🕒 Time:
-<b>{data['time']}</b>
+{data['time']}
 """,
         reply_markup=markup
     )
@@ -586,7 +703,9 @@ def admin_action(c):
 
     action, uid = c.data.split("_")
 
-    pending = load("pending_payments.json")
+    pending = load(
+        "pending_payments.json"
+    )
 
     if uid not in pending:
 
@@ -599,12 +718,15 @@ def admin_action(c):
 
     if action == "approve":
 
-        add_credit(uid, data["credits"])
+        add_credit(
+            uid,
+            data["credits"]
+        )
 
         bot.send_message(
             uid,
             f"""
-✅ <b>PAYMENT APPROVED</b>
+✅ PAYMENT APPROVED
 
 🎉 {data['credits']} credits added successfully.
 """,
@@ -620,7 +742,11 @@ def admin_action(c):
 
         bot.send_message(
             uid,
-            "❌ Payment rejected.\nContact support.",
+            """
+❌ Payment rejected.
+
+Contact support.
+""",
             reply_markup=main_menu()
         )
 
@@ -631,7 +757,10 @@ def admin_action(c):
 
     del pending[uid]
 
-    save("pending_payments.json", pending)
+    save(
+        "pending_payments.json",
+        pending
+    )
 
     bot.answer_callback_query(
         c.id,
@@ -639,90 +768,17 @@ def admin_action(c):
     )
 
 # =========================
-# BROADCAST
-# =========================
-broadcast_mode = {}
-
-@bot.message_handler(
-    func=lambda m:
-    m.text == "📢 Broadcast"
-)
-def broadcast(m):
-
-    if m.from_user.id != ADMIN_ID:
-
-        return bot.reply_to(
-            m,
-            "❌ Admin only"
-        )
-
-    broadcast_mode[m.chat.id] = True
-
-    bot.reply_to(
-        m,
-        "📢 Send broadcast message now."
-    )
-
-@bot.message_handler(
-    func=lambda m:
-    broadcast_mode.get(m.chat.id) == True
-)
-def send_broadcast(m):
-
-    if m.from_user.id != ADMIN_ID:
-        return
-
-    users = load("users.json")
-
-    success = 0
-    failed = 0
-
-    bot.reply_to(
-        m,
-        "📡 Broadcasting message..."
-    )
-
-    for uid in users:
-
-        try:
-
-            bot.send_message(
-                uid,
-                f"""
-📢 <b>ANNOUNCEMENT</b>
-
-{m.text}
-"""
-            )
-
-            success += 1
-
-        except:
-            failed += 1
-
-    broadcast_mode[m.chat.id] = False
-
-    bot.send_message(
-        m.chat.id,
-        f"""
-✅ Broadcast Complete
-
-✔ Success: {success}
-❌ Failed: {failed}
-"""
-    )
-
-# =========================
 # IMAGE HANDLER
 # =========================
 @bot.message_handler(
-    content_types=['photo', 'document']
+    content_types=[
+        'photo',
+        'document'
+    ]
 )
 def handle_image(m):
 
     try:
-
-        save_user(m.from_user)
 
         if m.content_type == "photo":
 
@@ -732,7 +788,9 @@ def handle_image(m):
 
         else:
 
-            if not m.document.mime_type.startswith("image/"):
+            if not m.document.mime_type.startswith(
+                "image/"
+            ):
 
                 return bot.reply_to(
                     m,
@@ -745,7 +803,7 @@ def handle_image(m):
 
         uid = str(m.chat.id)
 
-        # PAID USER
+        # PAID USERS
         if get_credit(uid) > 0:
 
             if not use_credit(uid):
@@ -762,7 +820,7 @@ def handle_image(m):
 
             return
 
-        # FREE USER
+        # FREE USERS
         if can_use_free(uid):
 
             use_free(uid)
@@ -777,20 +835,24 @@ def handle_image(m):
         bot.reply_to(
             m,
             """
-❌ Free trial exhausted.
+❌ Free trial finished.
 
-💳 Please buy credits to continue.
+💳 Buy credits to continue.
 """,
             reply_markup=main_menu()
         )
 
     except Exception as e:
 
-        print("Image Handler Error:", e)
+        print(
+            "Image Handler Error:",
+            e
+        )
 
         bot.reply_to(
             m,
-            limit_message()
+            limit_message(),
+            reply_markup=main_menu()
         )
 
 # =========================
@@ -805,10 +867,10 @@ def balance(m):
     bot.reply_to(
         m,
         f"""
-💎 <b>Credits:</b>
+💎 Credits:
 {get_credit(m.chat.id)}
 
-🎁 <b>Free Trial Left:</b>
+🎁 Free Trial Left:
 {FREE_LIMIT - get_free_used(m.chat.id)}
 """,
         reply_markup=main_menu()
@@ -850,10 +912,93 @@ def ask_chart(m):
     )
 
 # =========================
+# BROADCAST SYSTEM
+# =========================
+broadcast_mode = {}
+
+@bot.message_handler(
+    func=lambda m:
+    m.text == "📢 Broadcast"
+)
+def broadcast(m):
+
+    if m.chat.id != ADMIN_ID:
+
+        return bot.reply_to(
+            m,
+            "❌ Admin only."
+        )
+
+    broadcast_mode[m.chat.id] = True
+
+    bot.reply_to(
+        m,
+        """
+📢 Send your announcement now.
+"""
+    )
+
+@bot.message_handler(
+    func=lambda m:
+    broadcast_mode.get(m.chat.id)
+)
+def send_broadcast(m):
+
+    if m.chat.id != ADMIN_ID:
+        return
+
+    users = load("users.json")
+
+    sent = 0
+    failed = 0
+
+    bot.reply_to(
+        m,
+        "📡 Broadcasting message..."
+    )
+
+    for uid in users:
+
+        try:
+
+            bot.send_message(
+                uid,
+                f"""
+📢 ANNOUNCEMENT
+
+{m.text}
+"""
+            )
+
+            sent += 1
+
+            time.sleep(0.1)
+
+        except:
+
+            failed += 1
+
+    broadcast_mode[m.chat.id] = False
+
+    bot.send_message(
+        ADMIN_ID,
+        f"""
+✅ Broadcast Completed
+
+👥 Sent:
+{sent}
+
+❌ Failed:
+{failed}
+"""
+    )
+
+# =========================
 # FLASK
 # =========================
 @app.route("/")
 def home():
+
     return "BOT RUNNING"
 
 # =========================
@@ -864,7 +1009,5 @@ if __name__ == "__main__":
     print("BOT STARTED")
 
     bot.infinity_polling(
-        skip_pending=True,
-        timeout=60,
-        long_polling_timeout=60
-)
+        skip_pending=True
+            )
